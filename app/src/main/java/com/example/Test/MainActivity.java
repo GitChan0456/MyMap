@@ -39,6 +39,7 @@ import com.naver.maps.map.overlay.InfoWindow;
 import com.naver.maps.map.overlay.LocationOverlay;
 import com.naver.maps.map.overlay.Marker;
 import com.naver.maps.map.overlay.OverlayImage;
+import com.naver.maps.map.util.MarkerIcons;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -71,7 +72,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     private MapFragment mapFragment; // MapFragment 참조
     private NaverMap naverMap;
     private Marker currentGeocodedMarker; // 지오코딩 결과로 표시된 마커
-
+    private Marker longClickMarker; //지도 롱클릭 해당 장소 마커
     // UI 요소
     private EditText etAddress; //주소 입력창
     private Button btnGeocode;  //검색 버튼
@@ -224,15 +225,15 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         // 지도 롱 클릭 리스너 (리버스 지오코딩용)
         this.naverMap.setOnMapLongClickListener((point, coord) -> {
-            if (currentGeocodedMarker != null) {
-                currentGeocodedMarker.setMap(null); // 기존 마커 제거
+            if (longClickMarker  != null) {
+                longClickMarker .setMap(null); // 기존 마커 제거
             }
-            currentGeocodedMarker = new Marker();
-            currentGeocodedMarker.setPosition(coord);
-            currentGeocodedMarker.setMap(naverMap); // 새 마커 추가
+            longClickMarker  = new Marker();
+            longClickMarker .setPosition(coord);
+            longClickMarker .setMap(naverMap); // 새 마커 추가
 
             // --- ▼▼▼ 이 부분을 수정/추가합니다 ▼▼▼ ---
-            // 1. 먼저 리버스 지오코딩을 실행하여 주소 정보를 가져옵니다.
+            // 장소의 정보를 나타내는 팝업창 띄우기(dialog_place_detail)
             new Thread(() -> {
                 List<Address> addresses = null;
                 try {
@@ -248,10 +249,10 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
                     runOnUiThread(() -> {
                         // 2. 가져온 주소 정보로 마커의 캡션을 설정합니다.
-                        currentGeocodedMarker.setCaptionText(placeName);
+                        //longClickMarker.setCaptionText(placeName);
 
                         // 3. 마커에 클릭 리스너를 설정하여 다이얼로그를 띄웁니다.
-                        currentGeocodedMarker.setOnClickListener(overlay -> {
+                        longClickMarker.setOnClickListener(overlay -> {
                             PlaceDetailDialogFragment dialogFragment = PlaceDetailDialogFragment.newInstance(
                                     placeName,
                                     placeAddress,
@@ -445,12 +446,15 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
                 runOnUiThread(() -> {
                     if (naverMap != null) {
-                        if (currentGeocodedMarker != null) currentGeocodedMarker.setMap(null);
+                        if (currentGeocodedMarker != null) {
+                            currentGeocodedMarker.setMap(null);
+                        }
                         currentGeocodedMarker = new Marker();
                         currentGeocodedMarker.setPosition(point);
+                        currentGeocodedMarker.setIcon(MarkerIcons.BLUE);
                         currentGeocodedMarker.setCaptionText(addressString.length() > 15 ? addressString.substring(0,15)+"..." : addressString);
                         currentGeocodedMarker.setMap(naverMap);
-                        // --- ▼▼▼ 이 부분을 수정합니다 ▼▼▼ ---
+
                         // 생성된 마커에 클릭 리스너를 설정합니다.
                         currentGeocodedMarker.setOnClickListener(overlay -> {
                             // 1. newInstance 메서드를 사용하여 데이터를 담은 다이얼로그 프래그먼트를 생성합니다.
@@ -466,7 +470,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
                             return true; // 이벤트 소비
                         });
-                        // --- ▲▲▲ 이 부분을 수정합니다 ▲▲▲ ---
+
 
                         naverMap.moveCamera(CameraUpdate.scrollTo(point));                  //카메라 위치 지정
                         naverMap.moveCamera(CameraUpdate.scrollTo(point).zoomTo(15));       //카메라 줌 정도
@@ -510,8 +514,9 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                 Log.d(TAG, "Reverse Geocoded Address: " + addressText);
                 runOnUiThread(() -> {
                     Toast.makeText(MainActivity.this, "선택한 위치 주소: " + addressText, Toast.LENGTH_LONG).show();
-                    if (currentGeocodedMarker != null) { // 롱클릭으로 생성된 마커
-                        currentGeocodedMarker.setCaptionText(addressText.length() > 20 ? addressText.substring(0,20)+"..." : addressText);
+                    if (longClickMarker  != null) { // 롱클릭으로 생성된 마커 하단에 주소 표시
+                        //이것은 나중에
+                        //longClickMarker .setCaptionText(addressText.length() > 20 ? addressText.substring(0,20)+"..." : addressText);
                     }
                 });
             } else {
