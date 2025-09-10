@@ -149,7 +149,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
             mapFragment = MapFragment.newInstance();
             fm.beginTransaction().add(R.id.map_fragment, mapFragment).commit();
         }
-        mapFragment.getMapAsync(this); // onMapReady 콜백을 설정
+        mapFragment.getMapAsync(this); // 온맵레디 콜백을 설정
 
         // 검색 버튼 클릭 리스너
         btnGeocode.setOnClickListener(v -> {
@@ -230,6 +230,42 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
             currentGeocodedMarker = new Marker();
             currentGeocodedMarker.setPosition(coord);
             currentGeocodedMarker.setMap(naverMap); // 새 마커 추가
+
+            // --- ▼▼▼ 이 부분을 수정/추가합니다 ▼▼▼ ---
+            // 1. 먼저 리버스 지오코딩을 실행하여 주소 정보를 가져옵니다.
+            new Thread(() -> {
+                List<Address> addresses = null;
+                try {
+                    addresses = geocoder.getFromLocation(coord.latitude, coord.longitude, 1);
+                } catch (IOException e) {
+                    Log.e(TAG, "Reverse Geocoding failed for click listener", e);
+                }
+
+                if (addresses != null && !addresses.isEmpty()) {
+                    Address address = addresses.get(0);
+                    String placeName = address.getFeatureName() != null ? address.getFeatureName() : "이름 없는 장소"; // 장소 이름
+                    String placeAddress = address.getAddressLine(0); // 전체 주소
+
+                    runOnUiThread(() -> {
+                        // 2. 가져온 주소 정보로 마커의 캡션을 설정합니다.
+                        currentGeocodedMarker.setCaptionText(placeName);
+
+                        // 3. 마커에 클릭 리스너를 설정하여 다이얼로그를 띄웁니다.
+                        currentGeocodedMarker.setOnClickListener(overlay -> {
+                            PlaceDetailDialogFragment dialogFragment = PlaceDetailDialogFragment.newInstance(
+                                    placeName,
+                                    placeAddress,
+                                    coord.latitude,
+                                    coord.longitude
+                            );
+                            dialogFragment.show(getSupportFragmentManager(), "place_detail_dialog");
+                            return true;
+                        });
+                    });
+                }
+            }).start();
+            // --- ▲▲▲ 이 부분을 수정/추가합니다 ▲▲▲ ---
+
             performReverseGeocoding(coord); // 리버스 지오코딩 실행
         });
 
@@ -414,6 +450,24 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                         currentGeocodedMarker.setPosition(point);
                         currentGeocodedMarker.setCaptionText(addressString.length() > 15 ? addressString.substring(0,15)+"..." : addressString);
                         currentGeocodedMarker.setMap(naverMap);
+                        // --- ▼▼▼ 이 부분을 수정합니다 ▼▼▼ ---
+                        // 생성된 마커에 클릭 리스너를 설정합니다.
+                        currentGeocodedMarker.setOnClickListener(overlay -> {
+                            // 1. newInstance 메서드를 사용하여 데이터를 담은 다이얼로그 프래그먼트를 생성합니다.
+                            PlaceDetailDialogFragment dialogFragment = PlaceDetailDialogFragment.newInstance(
+                                    addressString,      // 장소 이름
+                                    snippet,            // 상세 주소
+                                    point.latitude,     // 위도
+                                    point.longitude     // 경도
+                            );
+
+                            // 2. FragmentManager를 사용하여 다이얼로그를 화면에 표시합니다.
+                            dialogFragment.show(getSupportFragmentManager(), "place_detail_dialog");
+
+                            return true; // 이벤트 소비
+                        });
+                        // --- ▲▲▲ 이 부분을 수정합니다 ▲▲▲ ---
+
                         naverMap.moveCamera(CameraUpdate.scrollTo(point));                  //카메라 위치 지정
                         naverMap.moveCamera(CameraUpdate.scrollTo(point).zoomTo(15));       //카메라 줌 정도
                         Toast.makeText(MainActivity.this, "검색 결과: " + snippet, Toast.LENGTH_LONG).show();
