@@ -99,6 +99,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     private LinearLayout btnFeature1, btnFeature2, btnFeature3, btnFeature4, btnFeature5, btnFeature6;
     private Button btnLogout; // 로그아웃 버튼 변수 추가
 
+    //onCreate는 실행시 처음에 한번만 실행
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -150,7 +151,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         }
         mapFragment.getMapAsync(this); // onMapReady 콜백을 설정
 
-        // 주소 검색 버튼 클릭 리스너
+        // 검색 버튼 클릭 리스너
         btnGeocode.setOnClickListener(v -> {
             String addressText = etAddress.getText().toString();
             if (!addressText.isEmpty()) {
@@ -217,7 +218,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         });
         // --- ▲▲▲ 이 코드를 추가합니다 ▲▲▲ ---
 
-        // (선택 사항) 초기 지도 위치 설정 (예: 충청북도청)
+        // 초기 지도 위치 설정 (예: 충청북도청)
         LatLng initialPosition = new LatLng(36.6358083, 127.4913333);
         this.naverMap.moveCamera(CameraUpdate.scrollTo(initialPosition));
 
@@ -402,9 +403,10 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
             if (addresses != null && !addresses.isEmpty()) {
                 Address address = addresses.get(0);
-                LatLng point = new LatLng(address.getLatitude(), address.getLongitude());
+                LatLng point = new LatLng(address.getLatitude(), address.getLongitude()); //좌표객체
                 String snippet = address.getAddressLine(0);
                 Log.d(TAG, "Geocoded Address: " + snippet + ", Lat: " + point.latitude + ", Lng: " + point.longitude);
+
                 runOnUiThread(() -> {
                     if (naverMap != null) {
                         if (currentGeocodedMarker != null) currentGeocodedMarker.setMap(null);
@@ -421,7 +423,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                         {
                             LatLng startPoint = locationOverlay.getPosition(); // 현재 위치를 출발지로
                             LatLng goalPoint = point; // 검색된 위치를 목적지로
-                            requestNaverDirections(startPoint, goalPoint); // 경로 요청!
+                            //requestNaverDirections(startPoint, goalPoint); // 경로 요청!
                         }
                         else
                         {
@@ -429,7 +431,8 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                         }
                     }
                 });
-            } else {
+            }
+            else {
                 Log.d(TAG, "No address found for: " + addressString);
                 runOnUiThread(() -> Toast.makeText(MainActivity.this, "해당 주소를 찾을 수 없습니다.", Toast.LENGTH_SHORT).show());
             }
@@ -621,7 +624,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
             } catch (Exception e) {
                 Log.e(TAG, "Error during fetchAndDisplayBusStops", e);
-                runOnUiThread(() -> Toast.makeText(this, "버스 정류장 정보를 가져오는 데 실패했습니다.", Toast.LENGTH_SHORT).show());
+                runOnUiThread(() -> Toast.makeText(this, "힝 버스 정류장 정보를 가져오는 데 실패했습니다.", Toast.LENGTH_SHORT).show());
             }
         }).start();
     }
@@ -679,8 +682,6 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
             // 최종 결과를 UI 스레드에서 정보 창의 내용으로 업데이트합니다.
             runOnUiThread(() -> {
-                // 다른 마커를 클릭하는 사이에 정보가 늦게 도착할 수 있으므로,
-                // 정보 창이 여전히 같은 마커에 열려 있는지 확인하는 것이 안전합니다.
                 if (infoWindow.getMarker() == marker) {
                     infoWindow.setAdapter(new InfoWindow.DefaultTextAdapter(this) {
                         @NonNull
@@ -692,19 +693,83 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                     // 어댑터가 바뀌었으므로 다시 open()을 호출하여 내용을 갱신할 수 있습니다.
                     infoWindow.open(marker);
                 }
-            });
+            }
+            );
         }).start();
     }
+    // MainActivity.java
+    private String fetchBusArrivals(String stationId) {
+        // OkHttp 클라이언트는 이미 onCreate에서 초기화되었습니다 (httpClient)
 
+        // API 요청 URL 구성. OkHttp의 HttpUrl.Builder를 사용하면 파라미터가 안전하게 인코딩됩니다.
+        okhttp3.HttpUrl.Builder urlBuilder = okhttp3.HttpUrl.parse("http://apis.data.go.kr/1613000/ArvlInfoInqireService/getSttnAcctoArvlInfoList").newBuilder();
+        urlBuilder.addQueryParameter("serviceKey", DATA_GO_KR_SERVICE_KEY);
+        urlBuilder.addQueryParameter("_type", "xml");
+        urlBuilder.addQueryParameter("cityCode", "31010"); // 청주시 코드 (예시)
+        urlBuilder.addQueryParameter("nodeId", stationId);
+
+        // Request 객체 생성
+        Request request = new Request.Builder()
+                .url(urlBuilder.build())
+                .build();
+
+        try {
+            // OkHttp를 사용하여 동기 방식으로 요청 실행
+            Response response = httpClient.newCall(request).execute();
+
+            Log.d(TAG,"이것은Test메세지입니다");
+            if (response.isSuccessful()) {
+                InputStream is = response.body().byteStream();
+
+                // XML 파싱 (이하 로직은 동일)
+                XmlPullParserFactory factory = XmlPullParserFactory.newInstance();
+                XmlPullParser xpp = factory.newPullParser();
+                xpp.setInput(new InputStreamReader(is, "UTF-8"));
+
+                String tag;
+                String routeNo = "", arrTime = "", arrPrevCnt = "";
+                StringBuilder arrivalResult = new StringBuilder();
+                int eventType = xpp.getEventType();
+
+                while (eventType != XmlPullParser.END_DOCUMENT) {
+                    if (eventType == XmlPullParser.START_TAG) {
+                        tag = xpp.getName();
+                        if (tag.equals("routeno")) { xpp.next(); routeNo = xpp.getText(); }
+                        else if (tag.equals("arrtime")) { xpp.next(); arrTime = xpp.getText(); }
+                        else if (tag.equals("arrprevstationcnt")) { xpp.next(); arrPrevCnt = xpp.getText(); }
+                    } else if (eventType == XmlPullParser.END_TAG) {
+                        tag = xpp.getName();
+                        if (tag.equals("item") && !routeNo.isEmpty()) {
+                            int arrivalSec = Integer.parseInt(arrTime);
+                            String arrivalText = (arrivalSec / 60) + "분 후 도착";
+                            arrivalResult.append("🚌 ").append(routeNo).append("번 (").append(arrPrevCnt).append(" 정거장 전)\n- ").append(arrivalText).append("\n\n");
+                            routeNo = "";
+                        }
+                    }
+                    eventType = xpp.next();
+                }
+                return arrivalResult.length() > 0 ? arrivalResult.toString().trim() : "도착 예정인 버스가 없습니다.";
+            } else {
+                // API 호출 실패 시
+                Log.e(TAG, "fetchBusArrivals API Error: " + response.code() + " " + response.message());
+                return "도착 정보 API 호출에 실패했습니다. (코드: " + response.code() + ")";
+            }
+
+        } catch (Exception e) {
+            Log.e(TAG, "Error fetching bus arrivals: " + e.getClass().getName() + " - " + e.getMessage(), e);
+            return "정보를 가져오는데 실패했습니다.";
+        }
+    }
     /**
      * 공공데이터포털 API를 호출하여 특정 정류장의 버스 도착 정보 문자열을 반환합니다.
      * @param stationId 도착 정보를 조회할 정류장의 고유 ID
      * @return 정보 창에 표시될 형식의 도착 정보 문자열
-     */
+
     private String fetchBusArrivals(String stationId) {
         try {
             // API 요청 URL
             StringBuilder urlBuilder = new StringBuilder("http://apis.data.go.kr/1613000/ArvlInfoInqireService/getSttnAcctoArvlInfoList");
+            //StringBuilder urlBuilder = new StringBuilder("http://apis.data.go.kr/1613000/BusSttnInfoInqireService/getCrdntPrxmtSttnList");
             urlBuilder.append("?serviceKey=").append(DATA_GO_KR_SERVICE_KEY);
             urlBuilder.append("&_type=").append("xml");
             urlBuilder.append("&cityCode=").append("31010"); // 청주시 코드 (예시)
@@ -748,53 +813,5 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
             return "정보를 가져오는데 실패했습니다.";
         }
     }
-    // --- 액티비티 생명주기 메소드 ---
-    // MapFragment를 사용할 때는 Activity의 생명주기 메소드에서 MapView의 생명주기를 직접 호출할 필요가 없습니다.
-    /*
-    @Override
-    protected void onResume() {
-        super.onResume();
-        // 위치 권한이 있고, 지도가 준비되었다면 위치 업데이트 다시 시작
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
-                ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-            if (naverMap != null) {
-                startLocationUpdates();
-            }
-        }
-    }
-
-    @Override
-    protected void onPause() {
-        super.onPause();
-        stopLocationUpdates(); // 화면이 보이지 않을 때 위치 업데이트 중지 (배터리 절약)
-    }
-
-    // onStart, onStop, onDestroy, onSaveInstanceState, onLowMemory는
-    // MapFragment를 사용하므로 특별히 MapView 관련 코드를 추가할 필요는 없습니다.
-    // super.onStart() 등 부모 클래스의 메소드 호출만으로 충분합니다.
-    @Override
-    protected void onStart() {
-        super.onStart();
-    }
-
-    @Override
-    protected void onStop() {
-        super.onStop();
-    }
-
-    @Override
-    protected void onSaveInstanceState(@NonNull Bundle outState) {
-        super.onSaveInstanceState(outState);
-    }
-
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-    }
-
-    @Override
-    public void onLowMemory() {
-        super.onLowMemory();
-    }
-    */
+     */
 }
