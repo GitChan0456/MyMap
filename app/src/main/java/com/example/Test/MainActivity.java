@@ -526,8 +526,6 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         }).start();
     }
 
-    // MainActivity.java 내부에 추가
-
     private void requestNaverDirections(LatLng start, LatLng goal) {
         Log.d(TAG, "requestNaverDirections 호출됨: start=" + start.toString() + ", goal=" + goal.toString());
 
@@ -577,9 +575,6 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
             }
         }).start();
     }
-
-
-    // MainActivity.java 내부에 아래 메서드 전체를 추가합니다.
 
     private void fetchAndDisplayBusStops(LatLng center) {
         // 서비스 키가 설정되지 않았다면 메서드 종료
@@ -757,26 +752,27 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         }).start();
     }
     // MainActivity.java
+
     private String fetchBusArrivals(String stationId) {
         // OkHttp 클라이언트는 이미 onCreate에서 초기화되었습니다 (httpClient)
 
         // API 요청 URL 구성. OkHttp의 HttpUrl.Builder를 사용하면 파라미터가 안전하게 인코딩됩니다.
-        okhttp3.HttpUrl.Builder urlBuilder = okhttp3.HttpUrl.parse("http://apis.data.go.kr/1613000/ArvlInfoInqireService/getSttnAcctoArvlInfoList").newBuilder();
+        okhttp3.HttpUrl.Builder urlBuilder = okhttp3.HttpUrl.parse("http://apis.data.go.kr/1613000/ArvlInfoInqireService/getSttnAcctoArvlPrearngeInfoList").newBuilder();
         urlBuilder.addQueryParameter("serviceKey", DATA_GO_KR_SERVICE_KEY);
         urlBuilder.addQueryParameter("_type", "xml");
-        urlBuilder.addQueryParameter("cityCode", "31010"); // 청주시 코드 (예시)
+        urlBuilder.addQueryParameter("cityCode", "31010"); // 31010 = 청주시 코드 (예시)
         urlBuilder.addQueryParameter("nodeId", stationId);
 
         // Request 객체 생성
-        Request request = new Request.Builder()
-                .url(urlBuilder.build())
-                .build();
+        Request request = new Request.Builder().url(urlBuilder.build()).build();
+        Log.d("OkHttpRequest", request.toString());
 
         try {
             // OkHttp를 사용하여 동기 방식으로 요청 실행
+            Log.d(TAG,"이것은Test메세지입니다 0");
             Response response = httpClient.newCall(request).execute();
 
-            Log.d(TAG,"이것은Test메세지입니다");
+            Log.d(TAG,"이것은Test메세지입니다 A");
             if (response.isSuccessful()) {
                 InputStream is = response.body().byteStream();
 
@@ -789,6 +785,8 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                 String routeNo = "", arrTime = "", arrPrevCnt = "";
                 StringBuilder arrivalResult = new StringBuilder();
                 int eventType = xpp.getEventType();
+
+                Log.d(TAG,"이것은Test메세지입니다 B");
 
                 while (eventType != XmlPullParser.END_DOCUMENT) {
                     if (eventType == XmlPullParser.START_TAG) {
@@ -819,58 +817,5 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
             return "정보를 가져오는데 실패했습니다.";
         }
     }
-    /**
-     * 공공데이터포털 API를 호출하여 특정 정류장의 버스 도착 정보 문자열을 반환합니다.
-     * @param stationId 도착 정보를 조회할 정류장의 고유 ID
-     * @return 정보 창에 표시될 형식의 도착 정보 문자열
 
-    private String fetchBusArrivals(String stationId) {
-        try {
-            // API 요청 URL
-            StringBuilder urlBuilder = new StringBuilder("http://apis.data.go.kr/1613000/ArvlInfoInqireService/getSttnAcctoArvlInfoList");
-            //StringBuilder urlBuilder = new StringBuilder("http://apis.data.go.kr/1613000/BusSttnInfoInqireService/getCrdntPrxmtSttnList");
-            urlBuilder.append("?serviceKey=").append(DATA_GO_KR_SERVICE_KEY);
-            urlBuilder.append("&_type=").append("xml");
-            urlBuilder.append("&cityCode=").append("31010"); // 청주시 코드 (예시)
-            urlBuilder.append("&nodeId=").append(stationId);
-
-            URL url = new URL(urlBuilder.toString());
-            InputStream is = url.openStream();
-
-            // XML 파싱
-            XmlPullParserFactory factory = XmlPullParserFactory.newInstance();
-            XmlPullParser xpp = factory.newPullParser();
-            xpp.setInput(new InputStreamReader(is, "UTF-8"));
-
-            String tag;
-            String routeNo = "", arrTime = "", arrPrevCnt = "";
-            StringBuilder arrivalResult = new StringBuilder();
-
-            int eventType = xpp.getEventType();
-            while (eventType != XmlPullParser.END_DOCUMENT) {
-                if (eventType == XmlPullParser.START_TAG) {
-                    tag = xpp.getName();
-                    if (tag.equals("routeno")) { xpp.next(); routeNo = xpp.getText(); }
-                    else if (tag.equals("arrtime")) { xpp.next(); arrTime = xpp.getText(); }
-                    else if (tag.equals("arrprevstationcnt")) { xpp.next(); arrPrevCnt = xpp.getText(); }
-                } else if (eventType == XmlPullParser.END_TAG) {
-                    tag = xpp.getName();
-                    if (tag.equals("item") && !routeNo.isEmpty()) {
-                        int arrivalSec = Integer.parseInt(arrTime);
-                        String arrivalText = (arrivalSec / 60) + "분 후";
-                        arrivalResult.append("🚌 ").append(routeNo).append("번 버스\n  ").append(arrivalText).append(" (").append(arrPrevCnt).append(" 정거장 전)\n");
-                        routeNo = ""; // 다음 아이템을 위해 초기화
-                    }
-                }
-                eventType = xpp.next();
-            }
-
-            return arrivalResult.length() > 0 ? arrivalResult.toString().trim() : "도착 예정인 버스가 없습니다.";
-
-        } catch (Exception e) {
-            Log.e(TAG, "Error fetching bus arrivals", e);
-            return "정보를 가져오는데 실패했습니다.";
-        }
-    }
-     */
 }
