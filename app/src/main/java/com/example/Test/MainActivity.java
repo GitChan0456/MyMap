@@ -619,7 +619,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                 xpp.setInput(new InputStreamReader(is, "UTF-8")); // 스트림과 인코딩 설정
 
                 String tag;
-                String stationName = null, stationId = null;
+                String stationName = null, stationId = null, stationNo = null;
                 double lat = 0, lng = 0;
                 int eventType = xpp.getEventType();
 
@@ -634,8 +634,14 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                             stationName = xpp.getText();
                         } else if (tag.equals("nodeno")) { // 정류소번호
                             xpp.next();
+                            stationNo = xpp.getText();
+                        }
+                        else if (tag.equals("nodeid")) { // 정류소id
+                            xpp.next();
                             stationId = xpp.getText();
-                        } else if (tag.equals("gpslati")) { // 위도
+                            Log.d(TAG,"name, id, no = " + stationName + ", " + stationId + ", " + stationNo );
+                        }
+                        else if (tag.equals("gpslati")) { // 위도
                             xpp.next();
                             lat = Double.parseDouble(xpp.getText());
                         } else if (tag.equals("gpslong")) { // 경도
@@ -717,6 +723,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     private void showArrivalInfo(Marker marker) {
         // 마커에 저장된 정류장 ID를 가져옵니다.
         String stationId = (String) marker.getTag();
+        Log.d(TAG,"메소드 showArrivalInfo()의 정류소ID: "+ stationId );
         if (stationId == null) return;
 
         // 정보 창에 "로딩 중..." 메시지를 먼저 표시하여 사용자에게 피드백을 줍니다.
@@ -759,20 +766,24 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         // API 요청 URL 구성. OkHttp의 HttpUrl.Builder를 사용하면 파라미터가 안전하게 인코딩됩니다.
         okhttp3.HttpUrl.Builder urlBuilder = okhttp3.HttpUrl.parse("http://apis.data.go.kr/1613000/ArvlInfoInqireService/getSttnAcctoArvlPrearngeInfoList").newBuilder();
         urlBuilder.addQueryParameter("serviceKey", DATA_GO_KR_SERVICE_KEY);
-        urlBuilder.addQueryParameter("_type", "xml");
-        urlBuilder.addQueryParameter("cityCode", "31010"); // 31010 = 청주시 코드 (예시)
+        urlBuilder.addQueryParameter("cityCode", "33010"); //33010 = 청주시
         urlBuilder.addQueryParameter("nodeId", stationId);
+        urlBuilder.addQueryParameter("_type", "xml");
+
+        Log.d(TAG,"DATA_GO_KR_SERVICE_KEY: "+ DATA_GO_KR_SERVICE_KEY ); //인증키 확인용
+        Log.d(TAG,"메소드 fetchBusArrivals()의 정류소ID: "+ stationId );
 
         // Request 객체 생성
         Request request = new Request.Builder().url(urlBuilder.build()).build();
+
         Log.d("OkHttpRequest", request.toString());
 
         try {
             // OkHttp를 사용하여 동기 방식으로 요청 실행
-            Log.d(TAG,"이것은Test메세지입니다 0");
             Response response = httpClient.newCall(request).execute();
+            Log.d("OkHttpResponse", response.toString());
 
-            Log.d(TAG,"이것은Test메세지입니다 A");
+            //api 호출 성공시 if문 실행
             if (response.isSuccessful()) {
                 InputStream is = response.body().byteStream();
 
@@ -785,8 +796,6 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                 String routeNo = "", arrTime = "", arrPrevCnt = "";
                 StringBuilder arrivalResult = new StringBuilder();
                 int eventType = xpp.getEventType();
-
-                Log.d(TAG,"이것은Test메세지입니다 B");
 
                 while (eventType != XmlPullParser.END_DOCUMENT) {
                     if (eventType == XmlPullParser.START_TAG) {
@@ -806,13 +815,16 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                     eventType = xpp.next();
                 }
                 return arrivalResult.length() > 0 ? arrivalResult.toString().trim() : "도착 예정인 버스가 없습니다.";
-            } else {
+            }
+            else
+            {
                 // API 호출 실패 시
                 Log.e(TAG, "fetchBusArrivals API Error: " + response.code() + " " + response.message());
                 return "도착 정보 API 호출에 실패했습니다. (코드: " + response.code() + ")";
             }
 
-        } catch (Exception e) {
+        }
+        catch (Exception e) {
             Log.e(TAG, "Error fetching bus arrivals: " + e.getClass().getName() + " - " + e.getMessage(), e);
             return "정보를 가져오는데 실패했습니다.";
         }
