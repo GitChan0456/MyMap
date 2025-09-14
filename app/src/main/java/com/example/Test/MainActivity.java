@@ -765,10 +765,10 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         // API 요청 URL 구성. OkHttp의 HttpUrl.Builder를 사용하면 파라미터가 안전하게 인코딩됩니다.
         okhttp3.HttpUrl.Builder urlBuilder = okhttp3.HttpUrl.parse("http://apis.data.go.kr/1613000/ArvlInfoInqireService/getSttnAcctoArvlPrearngeInfoList").newBuilder();
-        urlBuilder.addQueryParameter("serviceKey", DATA_GO_KR_SERVICE_KEY);
-        urlBuilder.addQueryParameter("cityCode", "33010"); //33010 = 청주시
-        urlBuilder.addQueryParameter("nodeId", stationId);
-        urlBuilder.addQueryParameter("_type", "xml");
+        urlBuilder.addEncodedQueryParameter ("serviceKey", DATA_GO_KR_SERVICE_KEY);
+        urlBuilder.addEncodedQueryParameter ("cityCode", "33010"); //33010 = 청주시
+        urlBuilder.addEncodedQueryParameter ("nodeId", stationId);
+        urlBuilder.addEncodedQueryParameter ("_type", "xml");
 
         Log.d(TAG,"DATA_GO_KR_SERVICE_KEY: "+ DATA_GO_KR_SERVICE_KEY ); //인증키 확인용
         Log.d(TAG,"메소드 fetchBusArrivals()의 정류소ID: "+ stationId );
