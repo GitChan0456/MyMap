@@ -18,6 +18,7 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import com.google.android.gms.location.FusedLocationProviderClient;
@@ -27,6 +28,7 @@ import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.location.Priority;
 
+import com.google.android.material.bottomsheet.BottomSheetBehavior;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.android.material.switchmaterial.SwitchMaterial;
 import com.naver.maps.geometry.LatLng;
@@ -57,6 +59,27 @@ import java.io.InputStreamReader; // import 추가
 import java.net.URL; // import 추가
 
 public class MainActivity extends AppCompatActivity implements OnMapReadyCallback {
+
+    private InfoWindow infoWindow; // 정류장의 버스 정보 출력할 창 변수 추가
+    // --- ▼▼▼ 이 부분을 추가합니다 ▼▼▼ ---
+    // 새로운 버스 도착 정보 바텀 시트 관련 변수들
+    private BottomSheetBehavior<View> busArrivalSheetBehavior;
+    private TextView tvBusStopName;
+    private LinearLayout llBusArrivalList;
+
+    // 버스 도착 정보를 깔끔하게 담기 위한 작은 데이터 클래스
+    private static class BusArrivalInfo {
+        String routeNo;    // 버스 번호
+        String arrTime;    // 도착 예정 시간(초)
+        String arrPrevCnt; // 남은 정류장 수
+
+        BusArrivalInfo(String routeNo, String arrTime, String arrPrevCnt) {
+            this.routeNo = routeNo;
+            this.arrTime = arrTime;
+            this.arrPrevCnt = arrPrevCnt;
+        }
+    }
+    // --- ▲▲▲ 이 부분을 추가합니다 ▲▲▲ ---
 
     private static final String TAG = "MainActivity";
     private static final int LOCATION_PERMISSION_REQUEST_CODE = 1000;
@@ -92,7 +115,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     private static final String DATA_GO_KR_SERVICE_KEY = "ffM27vy9DGkDka9x8liDumAwewOhqFwXxQTsywa37yJnj5sC1gba%2FgxZhCjct2Ht27OR3uN6WO2To439x55fIA%3D%3D";
     private List<Marker> busStopMarkers = new ArrayList<>(); // 지도에 표시된 버스 정류장 마커들을 관리하기 위한 리스트
     private OverlayImage busIcon;   // 버스 아이콘 이미지 저장 객체
-    private InfoWindow infoWindow; // 정류장의 버스 정보 출력할 창 변수 추가
+
     private static final double MIN_ZOOM_FOR_BUS_STOPS = 10.0; // 버스 정류장을 표시할 최소 줌 레벨
     private boolean isBusStopViewState = false; //switch on/off 상태 표현
 
@@ -105,6 +128,15 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        // --- ▼▼▼ 이 부분을 추가합니다 ▼▼▼ ---
+        // 새로운 버스 도착 정보 바텀 시트를 초기화합니다.
+        View busArrivalSheet = findViewById(R.id.bottom_sheet_bus_arrival);
+        busArrivalSheetBehavior = BottomSheetBehavior.from(busArrivalSheet);
+        tvBusStopName = busArrivalSheet.findViewById(R.id.tv_bus_stop_name);
+        llBusArrivalList = busArrivalSheet.findViewById(R.id.ll_bus_arrival_list);
+        // 앱이 시작될 때는 이 바텀 시트를 완전히 숨겨둡니다.
+        busArrivalSheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
 
         // UI 요소 초기화
         etAddress = findViewById(R.id.et_address);
@@ -209,15 +241,16 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         // LocationOverlay 객체 가져오기 (지도에 현재 위치를 표시하기 위함)
         this.locationOverlay = naverMap.getLocationOverlay();
 
-        // --- ▼▼▼ 이 코드를 추가합니다 ▼▼▼ ---
-        // 정보 창(InfoWindow) 객체 초기화
-        this.infoWindow = new InfoWindow();
-        // 정보 창 자체를 클릭하면 닫히도록 리스너 설정
-        this.infoWindow.setOnClickListener(overlay -> {
-            infoWindow.close();
-            return true; // 이벤트 소비
+        // --- ▼▼▼ 이 부분을 추가하거나 확인합니다 ▼▼▼ ---
+        // 지도 클릭 시 바텀 시트 숨기기
+        naverMap.setOnMapClickListener((point, coord) -> {
+            // 버스 도착 정보 바텀 시트가 숨겨진 상태(HIDDEN)가 아니라면,
+            if (busArrivalSheetBehavior.getState() != BottomSheetBehavior.STATE_HIDDEN) {
+                // 바텀 시트를 숨김 상태로 변경합니다.
+                busArrivalSheetBehavior.setState(BottomSheetBehavior.STATE_HIDDEN);
+            }
         });
-        // --- ▲▲▲ 이 코드를 추가합니다 ▲▲▲ ---
+        // --- ▲▲▲ 이 부분을 추가하거나 확인합니다 ▲▲▲ --
 
         // 초기 지도 위치 설정 (예: 충청북도청)
         LatLng initialPosition = new LatLng(36.6358083, 127.4913333);
@@ -721,80 +754,70 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
      * @param marker 사용자가 클릭한 마커 객체
      */
     private void showArrivalInfo(Marker marker) {
-        // 마커에 저장된 정류장 ID를 가져옵니다.
         String stationId = (String) marker.getTag();
-        Log.d(TAG,"메소드 showArrivalInfo()의 정류소ID: "+ stationId );
+        String stationName = marker.getCaptionText();
         if (stationId == null) return;
 
-        // 정보 창에 "로딩 중..." 메시지를 먼저 표시하여 사용자에게 피드백을 줍니다.
-        infoWindow.setAdapter(new InfoWindow.DefaultTextAdapter(this) {
-            @NonNull
-            @Override
-            public CharSequence getText(@NonNull InfoWindow infoWindow) {
-                return "도착 정보를 불러오는 중...";
-            }
-        });
-        infoWindow.open(marker); // 마커 위에 로딩 중 메시지를 띄움
+        tvBusStopName.setText(stationName);
+        llBusArrivalList.removeAllViews();
+        TextView loadingView = new TextView(this);
+        loadingView.setText("도착 정보를 불러오는 중...");
+        llBusArrivalList.addView(loadingView);
 
-        // 네트워크 작업은 별도의 스레드에서 수행합니다.
+        // ▼▼▼▼▼ 바로 이 부분을 수정합니다! ▼▼▼▼▼
+        // 2. 바텀 시트를 '절반 확장' 상태로 즉시 변경합니다.
+        busArrivalSheetBehavior.setState(BottomSheetBehavior.STATE_HALF_EXPANDED);
+        // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
+
+
+
         new Thread(() -> {
-            // 실제 도착 정보를 API로 받아옵니다.
-            final String arrivalInfo = fetchBusArrivals(stationId);
-
-            // 최종 결과를 UI 스레드에서 정보 창의 내용으로 업데이트합니다.
-            runOnUiThread(() -> {
-                if (infoWindow.getMarker() == marker) {
-                    infoWindow.setAdapter(new InfoWindow.DefaultTextAdapter(this) {
-                        @NonNull
-                        @Override
-                        public CharSequence getText(@NonNull InfoWindow infoWindow) {
-                            return arrivalInfo; // 최종 도착 정보 텍스트
-                        }
-                    });
-                    // 어댑터가 바뀌었으므로 다시 open()을 호출하여 내용을 갱신할 수 있습니다.
-                    infoWindow.open(marker);
-                }
-            }
-            );
+            final List<BusArrivalInfo> arrivalList = fetchBusArrivals(stationId);
+            runOnUiThread(() -> updateBusArrivalSheet(arrivalList));
         }).start();
     }
-    // MainActivity.java
+    private void updateBusArrivalSheet(List<BusArrivalInfo> arrivalList) {
+        llBusArrivalList.removeAllViews(); // "로딩 중" 메시지를 지웁니다.
 
-    private String fetchBusArrivals(String stationId) {
-        // OkHttp 클라이언트는 이미 onCreate에서 초기화되었습니다 (httpClient)
+        if (arrivalList == null || arrivalList.isEmpty()) {
+            TextView emptyView = new TextView(this);
+            emptyView.setText("도착 예정인 버스가 없습니다.");
+            llBusArrivalList.addView(emptyView);
+            return;
+        }
 
-        // API 요청 URL 구성. OkHttp의 HttpUrl.Builder를 사용하면 파라미터가 안전하게 인코딩됩니다.
+        for (BusArrivalInfo info : arrivalList) {
+            TextView busView = new TextView(this);
+            int arrivalSec = Integer.parseInt(info.arrTime);
+            String arrivalText = (arrivalSec / 60) + "분 후 도착";
+            String fullText = "🚌 " + info.routeNo + "번 (" + info.arrPrevCnt + " 정거장 전)\n- " + arrivalText;
+
+            busView.setText(fullText);
+            busView.setTextSize(16);
+            busView.setPadding(0, 8, 0, 24);
+            llBusArrivalList.addView(busView);
+        }
+    }
+
+    private List<BusArrivalInfo> fetchBusArrivals(String stationId) {
         okhttp3.HttpUrl.Builder urlBuilder = okhttp3.HttpUrl.parse("http://apis.data.go.kr/1613000/ArvlInfoInqireService/getSttnAcctoArvlPrearngeInfoList").newBuilder();
-        urlBuilder.addEncodedQueryParameter ("serviceKey", DATA_GO_KR_SERVICE_KEY);
-        urlBuilder.addEncodedQueryParameter ("cityCode", "33010"); //33010 = 청주시
-        urlBuilder.addEncodedQueryParameter ("nodeId", stationId);
-        urlBuilder.addEncodedQueryParameter ("_type", "xml");
-
-        Log.d(TAG,"DATA_GO_KR_SERVICE_KEY: "+ DATA_GO_KR_SERVICE_KEY ); //인증키 확인용
-        Log.d(TAG,"메소드 fetchBusArrivals()의 정류소ID: "+ stationId );
-
-        // Request 객체 생성
+        urlBuilder.addEncodedQueryParameter("serviceKey", DATA_GO_KR_SERVICE_KEY);
+        urlBuilder.addQueryParameter("cityCode", "33010");
+        urlBuilder.addQueryParameter("nodeId", stationId);
+        urlBuilder.addQueryParameter("_type", "xml");
         Request request = new Request.Builder().url(urlBuilder.build()).build();
 
-        Log.d("OkHttpRequest", request.toString());
-
         try {
-            // OkHttp를 사용하여 동기 방식으로 요청 실행
             Response response = httpClient.newCall(request).execute();
-            Log.d("OkHttpResponse", response.toString());
-
-            //api 호출 성공시 if문 실행
             if (response.isSuccessful()) {
                 InputStream is = response.body().byteStream();
-
-                // XML 파싱 (이하 로직은 동일)
                 XmlPullParserFactory factory = XmlPullParserFactory.newInstance();
                 XmlPullParser xpp = factory.newPullParser();
                 xpp.setInput(new InputStreamReader(is, "UTF-8"));
 
                 String tag;
                 String routeNo = "", arrTime = "", arrPrevCnt = "";
-                StringBuilder arrivalResult = new StringBuilder();
+                List<BusArrivalInfo> resultList = new ArrayList<>(); // String 대신 List 사용
                 int eventType = xpp.getEventType();
 
                 while (eventType != XmlPullParser.END_DOCUMENT) {
@@ -806,28 +829,23 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                     } else if (eventType == XmlPullParser.END_TAG) {
                         tag = xpp.getName();
                         if (tag.equals("item") && !routeNo.isEmpty()) {
-                            int arrivalSec = Integer.parseInt(arrTime);
-                            String arrivalText = (arrivalSec / 60) + "분 후 도착";
-                            arrivalResult.append("🚌 ").append(routeNo).append("번 (").append(arrPrevCnt).append(" 정거장 전)\n- ").append(arrivalText).append("\n\n");
+                            // 문자열을 만드는 대신 List에 BusArrivalInfo 객체를 추가
+                            resultList.add(new BusArrivalInfo(routeNo, arrTime, arrPrevCnt));
                             routeNo = "";
                         }
                     }
                     eventType = xpp.next();
                 }
-                return arrivalResult.length() > 0 ? arrivalResult.toString().trim() : "도착 예정인 버스가 없습니다.";
+                return resultList; // 완성된 List를 반환
+            } else {
+                Log.e(TAG, "fetchBusArrivals API Error: " + response.code());
+                return null; // 실패 시 null을 반환
             }
-            else
-            {
-                // API 호출 실패 시
-                Log.e(TAG, "fetchBusArrivals API Error: " + response.code() + " " + response.message());
-                return "도착 정보 API 호출에 실패했습니다. (코드: " + response.code() + ")";
-            }
-
-        }
-        catch (Exception e) {
-            Log.e(TAG, "Error fetching bus arrivals: " + e.getClass().getName() + " - " + e.getMessage(), e);
-            return "정보를 가져오는데 실패했습니다.";
+        } catch (Exception e) {
+            Log.e(TAG, "Error fetching bus arrivals: ", e);
+            return null; // 예외 발생 시 null을 반환
         }
     }
+
 
 }

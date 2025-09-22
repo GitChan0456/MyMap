@@ -84,4 +84,21 @@
         <include layout="@layout/bottom_sheet_layout"/>
 
     </FrameLayout>
+
+
+    <FrameLayout
+        android:id="@+id/bottom_sheet_bus_arrival"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:elevation="10dp"
+        app:layout_behavior="com.google.android.material.bottomsheet.BottomSheetBehavior"
+        app:behavior_peekHeight="80dp"
+        app:behavior_fitToContents="false"
+        app:behavior_draggable="false"
+        app:behavior_hideable="true">
+        <include layout="@layout/bottom_sheet_bus_arrival"/>
+
+    </FrameLayout>
+
+
 </androidx.coordinatorlayout.widget.CoordinatorLayout>
